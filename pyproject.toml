@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sacva"
+version = "0.1.0"
+description = "OSFI CAR Chapter 8 SA-CVA capital, marginal capital and effective risk-weight calibration"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas", "pyyaml", "openpyxl"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+sacva = "sacva.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sacva*"]
+
+[tool.setuptools.package-data]
+sacva = ["config/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

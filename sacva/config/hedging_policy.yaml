@@ -1,0 +1,87 @@
+# Hedging policies, policy assignment and calibration settings.
+#
+# Risk classes use internal names (CMDTY = bank RISK_TYPE CO). FX buckets follow the input naming (USDCAD).
+# policies.<policy>.<RISK_CLASS>.<measure>:
+#   instrument: same_factor            (market classes: hedge on the identical risk factor)
+#               single_name            (CCS: CDS on the counterparty itself, rho_name 100%)
+#               sector_proxy           (CCS: CDS on another name, same bucket & quality, rho_name 50%)
+#               qualified_index        (CCS: qualified index in bucket 8, IG or HY by counterparty quality)
+#   ratio:  hedge sensitivity as a fraction of the CVA sensitivity (missing entry = 0, i.e. unhedged)
+#   sizing: cr01  -> s_Hdg = ratio * s_CVA
+#           beta  -> s_Hdg = ratio * s_CVA * RW_counterparty / RW_hedge   (risk-weight matched; CCS only)
+policies:
+  unhedged: {}
+
+  # Names under a specific hedging policy, e.g. SSA / MDB: no CVA charge, so vega is not hedged
+  # and single-name CDS protection is generally not bought (set CCS ratio > 0 if it is).
+  specific_hedge:
+    CCS.delta:   {instrument: single_name, ratio: 0.0, sizing: cr01}
+    IR.delta:    {instrument: same_factor, ratio: 1.0}
+    IR.vega:     {instrument: same_factor, ratio: 0.0}
+    FX.delta:    {instrument: same_factor, ratio: 1.0}
+    FX.vega:     {instrument: same_factor, ratio: 0.0}
+    RCS.delta:   {instrument: same_factor, ratio: 1.0}
+    RCS.vega:    {instrument: same_factor, ratio: 0.0}
+    EQ.delta:    {instrument: same_factor, ratio: 1.0}
+    EQ.vega:     {instrument: same_factor, ratio: 0.0}
+    CMDTY.delta: {instrument: same_factor, ratio: 1.0}
+    CMDTY.vega:  {instrument: same_factor, ratio: 0.0}
+
+  # General counterparty population: market delta and vega hedged, credit hedged with indices.
+  sector_hedge:
+    CCS.delta:
+      instrument: qualified_index
+      ratio: 1.0
+      sizing: beta
+      index:
+        IG: {name: CDX.NA.IG, series: "1"}
+        HY: {name: CDX.NA.HY, series: "1"}
+    IR.delta:    {instrument: same_factor, ratio: 1.0}
+    IR.vega:     {instrument: same_factor, ratio: 1.0}
+    FX.delta:    {instrument: same_factor, ratio: 1.0}
+    FX.vega:     {instrument: same_factor, ratio: 1.0}
+    RCS.delta:   {instrument: same_factor, ratio: 1.0}
+    RCS.vega:    {instrument: same_factor, ratio: 1.0}
+    EQ.delta:    {instrument: same_factor, ratio: 1.0}
+    EQ.vega:     {instrument: same_factor, ratio: 1.0}
+    CMDTY.delta: {instrument: same_factor, ratio: 1.0}
+    CMDTY.vega:  {instrument: same_factor, ratio: 1.0}
+
+# Policy of an existing counterparty, first match wins:
+#   1. 'policy' column on its CVA rows in the book
+#   2. counterparties map
+#   3. ccs_buckets map (by SA-CVA sector bucket)
+#   4. default
+assignment:
+  default: sector_hedge
+  counterparties: {}          # e.g. {"World Bank": specific_hedge}
+  ccs_buckets:
+    "1a": specific_hedge      # sovereigns, central banks, MDBs
+
+calibration:
+  trade_size: 1.0             # representative grids: units added before dividing back to per-unit
+  # Counterparty-level RWs: per counterparty x risk type, a trade with the counterparty's own net sensitivity
+  # profile scaled to this gross normalised size (10,000 = $1/bp) plus its policy hedge.
+  counterparty:
+    trade_size: 10000
+    cluster_policies: [sector_hedge]   # clustered by sector x IG/HY; other policies reported per counterparty
+  ccs:
+    unit: per_bp              # unit trade = $1/bp CR01 = 10,000 normalised sensitivity
+    tenor_profile: {"5Y": 1.0}   # representative CR01 split across tenors (sums to 1)
+    buckets: ["1a", "1b", "2", "3", "4", "5", "6", "7"]
+    qualities: [IG, HY]
+  # market cells are priced for each direction of a unit CVA sensitivity (delta is signed by the trade)
+  market_directions: {delta: [1, -1], vega: [1]}
+  representative_factors:
+    - {risk_class: IR,    measure: delta, bucket: CAD, risk_factor: 5Y,    unit: per_bp}
+    - {risk_class: IR,    measure: delta, bucket: USD, risk_factor: 5Y,    unit: per_bp}
+    - {risk_class: IR,    measure: vega,  bucket: CAD, risk_factor: IRVOL, unit: per_1pct}
+    - {risk_class: IR,    measure: vega,  bucket: USD, risk_factor: IRVOL, unit: per_1pct}
+    - {risk_class: FX,    measure: delta, bucket: USDCAD, risk_factor: "", unit: per_1pct}
+    - {risk_class: FX,    measure: vega,  bucket: USDCAD, risk_factor: "", unit: per_1pct}
+    - {risk_class: RCS,   measure: delta, bucket: "3", risk_factor: "",    unit: per_bp}
+    - {risk_class: RCS,   measure: vega,  bucket: "3", risk_factor: "",    unit: per_1pct}
+    - {risk_class: EQ,    measure: delta, bucket: "5", risk_factor: "",    unit: per_1pct}
+    - {risk_class: EQ,    measure: vega,  bucket: "5", risk_factor: "",    unit: per_1pct}
+    - {risk_class: CMDTY, measure: delta, bucket: "2", risk_factor: "",    unit: per_1pct}
+    - {risk_class: CMDTY, measure: vega,  bucket: "2", risk_factor: "",    unit: per_1pct}

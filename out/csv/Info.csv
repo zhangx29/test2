@@ -1,0 +1,11 @@
+item,value
+regulatory_params,OSFI-CAR-2027-Ch8
+m_cva,1.0
+hedging_disallowance_R,0.01
+incremental_trade_size,1.0
+ccs_unit,per_bp
+ccs_tenor_profile,{'5Y': 1.0}
+base_SA_CVA_capital,8458158.494430268
+eff_rw definition,capital per regulatory unit of sensitivity; comparable with the regulatory RW
+per_unit definition,capital per user unit (e.g. per $1 CR01 / $1 DV01 / $1 per 1% vol)
+Euler caveat,Euler omits the R*(WS_Hdg)^2 disallowance of hedge factors absent from the book

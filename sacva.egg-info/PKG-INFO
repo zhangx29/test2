@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: sacva
+Version: 0.1.0
+Summary: OSFI CAR Chapter 8 SA-CVA capital, marginal capital and effective risk-weight calibration
+Requires-Python: >=3.11
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: pyyaml
+Requires-Dist: openpyxl
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

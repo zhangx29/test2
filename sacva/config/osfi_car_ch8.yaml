@@ -1,0 +1,94 @@
+# SA-CVA regulatory parameters.
+# Source: OSFI CAR (2027) Chapter 8, section 8.3 (SA-CVA). Basel MAR refs as quoted by OSFI.
+# Percentages are stored as decimals.
+version: OSFI-CAR-2027-Ch8
+reporting_currency: CAD
+
+m_cva: 1.0            # MAR50.41: set at 1; OSFI may require a higher value
+hedging_disallowance_R: 0.01   # MAR50.53
+
+IR:
+  # MAR50.56: reporting currency plus these currencies use the tenor-based factors
+  specified_currencies: [USD, EUR, GBP, AUD, CAD, SEK, JPY]
+  gamma: 0.5                       # MAR50.55
+  delta:
+    tenors: ["1Y", "2Y", "5Y", "10Y", "30Y"]
+    rw: {"1Y": 0.0111, "2Y": 0.0093, "5Y": 0.0074, "10Y": 0.0074, "30Y": 0.0074, "INFL": 0.0111}
+    # MAR50.56 tenor correlation (upper triangle); inflation vs any tenor = 40%
+    rho_tenor:
+      "1Y":  {"2Y": 0.91, "5Y": 0.72, "10Y": 0.55, "30Y": 0.31}
+      "2Y":  {"5Y": 0.87, "10Y": 0.72, "30Y": 0.45}
+      "5Y":  {"10Y": 0.91, "30Y": 0.68}
+      "10Y": {"30Y": 0.83}
+    rho_inflation: 0.40
+    other_currency_rw: 0.0158      # MAR50.57: PARALLEL and INFL
+    other_currency_rho: 0.40
+  vega:
+    factors: [IRVOL, INFLVOL]      # MAR50.58
+    rw: 1.0
+    rho: 0.40
+
+FX:
+  gamma: 0.6                       # MAR50.60
+  delta: {rw: 0.11}                # MAR50.61
+  vega: {rw: 1.0}                  # MAR50.62
+
+CCS:
+  # MAR50.63-65. Delta only. 1a/1b are one bucket ("1") for cross-bucket aggregation.
+  tenors: ["0.5Y", "1Y", "3Y", "5Y", "10Y"]
+  buckets: ["1a", "1b", "2", "3", "4", "5", "6", "7", "8"]
+  rw:
+    IG: {"1a": 0.005, "1b": 0.010, "2": 0.050, "3": 0.030, "4": 0.030, "5": 0.020, "6": 0.015, "7": 0.050, "8": 0.015}
+    HY: {"1a": 0.020, "1b": 0.040, "2": 0.120, "3": 0.070, "4": 0.085, "5": 0.055, "6": 0.050, "7": 0.120, "8": 0.050}
+  rho_tenor_diff: 0.90
+  rho_name: {same: 1.0, related: 0.90, other: 0.50}
+  rho_name_index: {same_series: 1.0, other_series: 0.90, other: 0.80}   # bucket 8
+  rho_quality_diff: 0.80
+  # MAR50.64 cross-bucket correlations (upper triangle, buckets 1..8)
+  gamma:
+    "1": {"2": 0.10, "3": 0.20, "4": 0.25, "5": 0.20, "6": 0.15, "7": 0.0, "8": 0.45}
+    "2": {"3": 0.05, "4": 0.15, "5": 0.20, "6": 0.05, "7": 0.0, "8": 0.45}
+    "3": {"4": 0.20, "5": 0.25, "6": 0.05, "7": 0.0, "8": 0.45}
+    "4": {"5": 0.25, "6": 0.05, "7": 0.0, "8": 0.45}
+    "5": {"6": 0.05, "7": 0.0, "8": 0.45}
+    "6": {"7": 0.0, "8": 0.45}
+    "7": {"8": 0.0}
+
+RCS:
+  # MAR50.66-69. One factor per bucket (all tenors / names shifted together).
+  delta_rw: {"1": 0.005, "2": 0.010, "3": 0.050, "4": 0.030, "5": 0.030, "6": 0.020, "7": 0.015,
+             "8": 0.020, "9": 0.040, "10": 0.120, "11": 0.070, "12": 0.085, "13": 0.055, "14": 0.050,
+             "15": 0.120, "16": 0.015, "17": 0.050}
+  vega_rw: 1.0
+  # MAR50.67 same-quality cross-bucket table keyed by sector group: 1/8 -> "1", ..., 7/14 -> "7"
+  gamma_same_quality:
+    "1":  {"2": 0.75, "3": 0.10, "4": 0.20, "5": 0.25, "6": 0.20, "7": 0.15, "15": 0.0, "16": 0.45, "17": 0.45}
+    "2":  {"3": 0.05, "4": 0.15, "5": 0.20, "6": 0.15, "7": 0.10, "15": 0.0, "16": 0.45, "17": 0.45}
+    "3":  {"4": 0.05, "5": 0.15, "6": 0.20, "7": 0.05, "15": 0.0, "16": 0.45, "17": 0.45}
+    "4":  {"5": 0.20, "6": 0.25, "7": 0.05, "15": 0.0, "16": 0.45, "17": 0.45}
+    "5":  {"6": 0.25, "7": 0.05, "15": 0.0, "16": 0.45, "17": 0.45}
+    "6":  {"7": 0.05, "15": 0.0, "16": 0.45, "17": 0.45}
+    "7":  {"15": 0.0, "16": 0.45, "17": 0.45}
+    "15": {"16": 0.0, "17": 0.0}
+    "16": {"17": 0.75}
+  diff_quality_factor: 0.5   # buckets 1-14 of different credit quality: divide by 2
+
+EQ:
+  # MAR50.70-73
+  delta_rw: {"1": 0.55, "2": 0.60, "3": 0.45, "4": 0.55, "5": 0.30, "6": 0.35, "7": 0.40,
+             "8": 0.50, "9": 0.70, "10": 0.50, "11": 0.70, "12": 0.15, "13": 0.25}
+  vega_rw_large: 0.78
+  vega_rw_other: 1.0
+  large_cap_buckets: ["1", "2", "3", "4", "5", "6", "7", "8", "12"]
+  gamma_1_10: 0.15
+  gamma_12_13: 0.75
+  gamma_index_vs_1_10: 0.45
+  gamma_other_bucket: "11"   # gamma 0 with any bucket
+
+CMDTY:
+  # MAR50.74-77
+  delta_rw: {"1": 0.30, "2": 0.35, "3": 0.60, "4": 0.80, "5": 0.40, "6": 0.45, "7": 0.20,
+             "8": 0.35, "9": 0.25, "10": 0.35, "11": 0.50}
+  vega_rw: 1.0
+  gamma_1_10: 0.20
+  gamma_other_bucket: "11"

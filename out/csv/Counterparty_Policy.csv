@@ -1,0 +1,17 @@
+name,bucket,quality,policy
+Airline Co,4,HY,sector_hedge
+Big Bank A,2,IG,sector_hedge
+Big Bank A Securities,2,IG,sector_hedge
+City of Montreal,1b,IG,sector_hedge
+EIB,1a,IG,specific_hedge
+Hedge Fund C,2,HY,unhedged
+Insurer B,2,IG,sector_hedge
+Mining Co,3,HY,sector_hedge
+Pension Fund D,7,IG,sector_hedge
+Pipeline Co,3,IG,sector_hedge
+Province of Ontario,1b,IG,specific_hedge
+Republic of Chile,1a,IG,specific_hedge
+Retailer Co,4,IG,sector_hedge
+Telecom Co,5,IG,sector_hedge
+Utility Co,6,IG,sector_hedge
+World Bank,1a,IG,specific_hedge
