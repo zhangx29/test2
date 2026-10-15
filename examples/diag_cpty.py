@@ -3,7 +3,8 @@
     python examples/diag_cpty.py --book <CVA_CALC_RF file> --cpty "BMOIRELAND|HINS" "BMOIRELAND|RENTBK"
 
 For each counterparty prints: its CCS factors, the policy hedge legs, incremental RW at several trade
-sizes in both directions, the Euler RW, a per-factor finite-difference check of the gradient, and
+sizes (normalised units) in both directions, the Euler RW (all per normalised unit, i.e. the CPTY_RW
+*_eff_rw columns; x 10,000 for bp factors or x 100 for 1% factors gives the per-$1 *_rw), a per-factor finite-difference check of the gradient, and
 per-bucket K_b / sum WS / S_b before and after the trade (clipping regime of S_b).
 """
 from __future__ import annotations
@@ -57,7 +58,7 @@ def main() -> None:
         ev.prepare([unit[COLUMNS], hdg[COLUMNS]])
         pu, ph = ev.positions(unit), ev.positions(hdg)
         au, ah = unit["amount"].to_numpy(float), hdg["amount"].to_numpy(float)
-        print("\nsize        inc_rw(+)      inc_rw(-)      euler_rw")
+        print("\nsize        inc_eff_rw(+)  inc_eff_rw(-)  euler_eff_rw")
         for s in (1.0, 1e2, 1e4, 1e6):
             ip = ev.evaluate_delta(key, pu, au * s, ph, ah * s)
             im = ev.evaluate_delta(key, pu, -au * s, ph, -ah * s)

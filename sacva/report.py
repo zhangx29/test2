@@ -38,15 +38,20 @@ def summary_sheets(results: dict[str, Any], params: dict[str, Any], policy_cfg: 
         ("ccs_unit", policy_cfg["calibration"]["ccs"]["unit"]),
         ("ccs_tenor_profile", str(policy_cfg["calibration"]["ccs"]["tenor_profile"])),
         ("base_SA_CVA_capital", float(results["base_capital"]["K"].sum())),
-        ("*_eff_rw (the RW)", "capital change per 1 unit of normalised sensitivity (dV/0.0001 for bp factors, "
-                              "dV/0.01 for 1% relative factors); directly comparable with the regulatory RW"),
+        ("*_rw (the RW)", "capital change per $1 of user-unit sensitivity: per $1/bp CR01 or DV01 (= 10,000 "
+                          "normalised) for bp factors, per $1 per 1% (= 100 normalised) for 1% factors"),
+        ("*_eff_rw", "capital change per 1 unit of normalised sensitivity (dV/0.0001 for bp factors, dV/0.01 for 1% "
+                     "relative factors) = RW / 10,000 or / 100; directly comparable with the regulatory RW"),
         ("unit trade", "1 per_bp = 10,000 normalised (a $1/bp CR01 or DV01); 1 per_1pct = 100 normalised"),
-        ("*_per_unit", "capital change for the whole unit trade = eff_rw x 10,000 (bp factors) or x 100 (1% factors)"),
         ("Euler caveat", "Euler omits the R*(WS_Hdg)^2 disallowance of hedge factors absent from the book"),
         ("CPTY_RW", "per counterparty (INTERNAL_ENTITY|COUNTERPARTY_ID) x risk type: trade = the counterparty's own net "
                     "sensitivity profile scaled to a gross size of "
-                    f"{policy_cfg['calibration'].get('counterparty', {}).get('trade_size', 1e4):,.0f} + its policy hedge; "
-                    "RW = capital change / gross size, i.e. per unit of gross normalised sensitivity"),
+                    f"{policy_cfg['calibration'].get('counterparty', {}).get('trade_size', 1.0):g} user units ($/bp or "
+                    "$/1%, see 'unit') + its policy hedge; *_rw = capital change per $1 of gross user-unit sensitivity, "
+                    "*_eff_rw = per unit of gross normalised sensitivity; euler_alloc = euler_rw x gross_sens_user"),
+        ("CPTY_RW units", ", ".join(f"{k}={v}" for k, v in
+                                    (policy_cfg['calibration'].get('counterparty', {}).get('units') or {}).items())
+                          or "per_bp for CCS/IR/RCS delta, per_1pct otherwise"),
         ("CPTY_RW_CLUSTER", "gross-sensitivity-weighted RW by policy x sector x quality x risk type for policies "
                             f"{policy_cfg['calibration'].get('counterparty', {}).get('cluster_policies', ['sector_hedge'])}"),
         ("CPTY_EULER_RECON", "per risk type: CVA Euler (counterparties + unattributed) + macro-hedge Euler = K_RT; "
@@ -54,9 +59,9 @@ def summary_sheets(results: dict[str, Any], params: dict[str, Any], policy_cfg: 
     ], columns=["item", "value"])
     sheets = {
         "Info": info,
-        "CCS_Incremental_RW": _pivot(ccs, "incremental_eff_rw"),
-        "CCS_Euler_RW": _pivot(ccs, "euler_eff_rw"),
-        "CCS_Standalone_RW": _pivot(ccs, "standalone_eff_rw"),
+        "CCS_Incremental_RW": _pivot(ccs, "incremental_rw"),   # per 1 ccs_unit, e.g. $1/bp CR01 (eff_rw in CCS_Detail)
+        "CCS_Euler_RW": _pivot(ccs, "euler_rw"),
+        "CCS_Standalone_RW": _pivot(ccs, "standalone_rw"),
         "CCS_Detail": ccs,
         "Market_Grid": mkt,
         "Base_Capital": _ext_codes(results["base_capital"]),

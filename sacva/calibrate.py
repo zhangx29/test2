@@ -1,8 +1,8 @@
 """Effective risk-weight calibration grids.
 
-Capital is reported per *user unit* (e.g. per $1 CR01, per $1 DV01, per $1 per 1% vol) and as an
-*effective RW* = capital per regulatory unit, which is directly comparable with the regulatory risk
-weight: a stand-alone unhedged position returns exactly its regulatory RW.
+Capital is reported as a *RW* = capital change per $1 of user-unit sensitivity (per $1/bp CR01 or DV01, per $1 per
+1% move), and as an *effective RW* = capital per normalised (regulatory) unit, which is directly comparable with the
+regulatory risk weight: a stand-alone unhedged position returns exactly its regulatory RW.
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def ccs_representative_grid(book, params, policy_cfg, ev: MarginalEvaluator | No
         out.append(dict(policy=pol, risk_class="CCS", measure="delta", bucket=b, quality=q,
                         risk_factor="profile:" + ",".join(f"{t}={w:g}" for t, w in c["tenor_profile"].items()),
                         unit=unit, reg_rw=params["CCS"]["rw"][q][b],
-                        incremental_per_unit=inc, euler_per_unit=eul, standalone_per_unit=alone,
+                        incremental_rw=inc, euler_rw=eul, standalone_rw=alone,
                         incremental_eff_rw=inc / scale, euler_eff_rw=eul / scale, standalone_eff_rw=alone / scale,
                         basis=BASIS_REP))
     return pd.DataFrame(out)
@@ -74,7 +74,7 @@ def market_grid(book, params, policy_cfg, ev: MarginalEvaluator | None = None) -
         out.append(dict(policy=pol, risk_class=f["risk_class"], measure=f["measure"], bucket=str(f["bucket"]),
                         quality="", risk_factor=str(f.get("risk_factor", "")), direction=d, unit=f["unit"],
                         reg_rw=riskclass.risk_weight(r["risk_class"], r["measure"], r["bucket"], r["risk_factor"], "", params),
-                        incremental_per_unit=inc, euler_per_unit=eul, standalone_per_unit=alone,
+                        incremental_rw=inc, euler_rw=eul, standalone_rw=alone,
                         incremental_eff_rw=inc / scale, euler_eff_rw=eul / scale, standalone_eff_rw=alone / scale,
                         basis="representative factor"))
     return pd.DataFrame(out)

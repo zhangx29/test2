@@ -63,7 +63,9 @@ is in the gradient; if all factors agree but incremental ≠ Euler, it is a posi
   instead of hypothetical ones).
 
 ### CCS new-name grid
-- Unhedged and specific_hedge are identical (specific_hedge CCS hedge ratio is 0).
+- Unhedged and specific_hedge are identical (specific_hedge CCS hedge ratio is 0). *(Config changed 2026-10-14:
+  specific_hedge now hedges CCS 80% with a dummy same-sector name. RWs are now reported per $1 (`*_rw`), with the
+  per-normalised values in `*_eff_rw`.)*
 - Effective RW as a share of regulatory RW:
 
   | Bucket | Share |

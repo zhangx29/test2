@@ -93,19 +93,20 @@ Enter hedge sensitivities with the sign of the hedge's own market value.
   Contributions sum to K. For a risk class with no book capital it equals the stand-alone value.
   It omits the second-order R·(WS^Hdg)² disallowance of hedge factors that are new to the book.
 * **Stand-alone:** K(trade) with no book. Unhedged stand-alone effective RW = regulatory RW.
-* **RW (`*_eff_rw`)** = capital change per 1 unit of *normalised* sensitivity, so capital ≈ RW × normalised
-  sensitivity. It is directly comparable with the regulatory RW.
-  The calibration unit trade is 10,000 normalised for bp factors (= $1/bp) and 100 for 1% factors.
-  `*_per_unit` = capital change for that whole unit trade (= RW × 10,000 or × 100).
+* **RW (`*_rw`)** = capital change per **$1 of user-unit sensitivity**: per $1/bp CR01 or DV01 (= 10,000
+  normalised) for bp factors, per $1 per 1% move (= 100 normalised) for 1% factors. So capital ≈ RW × $
+  sensitivity; for CCS delta the RW is the capital of a $1 CR01 (SK_CVA of 10,000).
+* **Effective RW (`*_eff_rw`)** = capital change per 1 unit of *normalised* sensitivity = RW / 10,000 or / 100.
+  It is directly comparable with the regulatory RW.
 
 ### Calibration outputs (`sacva calibrate`)
 
 | sheet | content |
 |---|---|
-| `CPTY_RW` | per counterparty (`INTERNAL_ENTITY\|COUNTERPARTY_ID`) × risk type (e.g. CCS DELTA, IR DELTA, IR VEGA, FX DELTA): incremental, Euler and stand-alone RW, plus its gross sensitivity, policy, sector and IG/HY, and its Euler allocation |
+| `CPTY_RW` | per counterparty (`INTERNAL_ENTITY\|COUNTERPARTY_ID`) × risk type (e.g. CCS DELTA, IR DELTA, IR VEGA, FX DELTA): incremental, Euler and stand-alone RW per $1 (`*_rw`) and per normalised unit (`*_eff_rw`), the `unit`, gross sensitivity (normalised and in user units), policy, sector and IG/HY, and its Euler allocation |
 | `CPTY_RW_CLUSTER` | `sector_hedge` counterparties clustered by sector × IG/HY × risk type; RW = Σ(RW × gross) / Σ gross. Other policies (e.g. SSA/MDB under `specific_hedge`) are priced per counterparty from `CPTY_RW` |
 | `CPTY_EULER_RECON` | per risk type: K_RT = counterparty CVA Euler + unattributed CVA Euler + macro-hedge Euler. The macro hedge is split into the part implied by counterparty policies (inside the counterparty allocations) and the unallocated remainder |
-| `CCS_Incremental_RW`, `CCS_Euler_RW`, `CCS_Standalone_RW` | new-name grid: policy × bucket × IG/HY for a representative **new** counterparty (ρ_name 50% to book names), tenor profile from config |
+| `CCS_Incremental_RW`, `CCS_Euler_RW`, `CCS_Standalone_RW` | RW per $1/bp CR01; new-name grid: policy × bucket × IG/HY for a representative **new** counterparty (ρ_name 50% to book names), tenor profile from config |
 | `Market_Grid` | policy × representative factor (`calibration.representative_factors`) × `direction` (delta priced for +1 and −1 units, vega for +1: `calibration.market_directions`) |
 | `Euler_Contrib_Cpty`, `Euler_Contrib_Factor` | Euler allocation of the current book on actual sensitivities: CVA per counterparty × risk type, macro hedges as one row per risk type, and the same per factor. Check rows show Σ contributions = K |
 | `Counterparty_Policy` | each counterparty's sector and IG/HY (from its dominant CCS name by \|CR01\|; `UNMAPPED` if it has no CCS) and its policy |
@@ -113,11 +114,17 @@ Enter hedge sensitivities with the sign of the hedge's own market value.
 
 ### Hedging policies (defaults, all configurable)
 
-| policy | market delta | market vega | CCS |
-|---|---|---|---|
-| `unhedged` | 0% | 0% | 0% |
-| `specific_hedge` (SSA / MDB, CCS bucket 1a by default) | 100% | 0% | single-name, 0% |
-| `sector_hedge` (default population) | 100% | 100% | qualified index (bucket 8), RW-matched (beta), 100% |
+| policy | example | market delta | market vega | CCS |
+|---|---|---|---|---|
+| `specific_hedge` (CCS bucket 1a by default) | WORLD, the 7 SSAs | 100% | 0% | 80%, different (dummy) name in the same sector & IG/HY |
+| `name_hedge` | IPL | 100% | 90% | 80%, its own name |
+| `sector_hedge` (default population) | most counterparties | 100% | 90% | 80%, different (dummy) name in the same sector & IG/HY |
+| `unhedged_delta` | a few names | 100% | 0% | 0% |
+| `unhedged` | a few names | 0% | 0% | 0% |
+
+The CCS hedge mirrors the CVA tenor profile. The dummy name is `PROXY:<bucket>:<quality>` (ρ_name 50% to the
+counterparty). Qualified-index hedges (`instrument: qualified_index`, optionally RW-matched with `sizing: beta`)
+remain available in the config.
 
 Assignment order: `policy` column (generic format) → `assignment.counterparties` (key
 `INTERNAL_ENTITY|COUNTERPARTY_ID` or `COUNTERPARTY_ID`) → `assignment.ccs_buckets` (counterparty sector)
@@ -127,17 +134,19 @@ Assignment order: `policy` column (generic format) → `assignment.counterpartie
 
 For counterparty c and risk type rt, let s_c be c's net CVA sensitivities on the factors of rt, with
 gross size G_c = Σ|s_c|. The trade is s_c scaled to a gross size of `calibration.counterparty.trade_size`
-(default 10,000 = $1/bp), plus the hedge c's policy puts on it. Then:
+user units (default $1: $1/bp = 10,000 normalised for CCS/IR/RCS delta, $1 per 1% = 100 normalised for
+FX/EQ/CMDTY delta and all vega; set per risk type in `calibration.counterparty.units`), plus the hedge c's
+policy puts on it. Then, per $1 (`*_eff_rw`: divide by 10,000 or 100 instead):
 
-* incremental RW = [K(book + trade) − K(book)] / size
-* Euler RW = ∇K(book)·trade / size
-* stand-alone RW = K(trade) / size
+* incremental RW = [K(book + trade) − K(book)] / trade_size
+* Euler RW = ∇K(book)·trade / trade_size
+* stand-alone RW = K(trade) / trade_size
 * reverse incremental RW (`incremental_rw_reverse`) = the same for a trade that *reduces* the existing
   exposure (opposite profile and hedge). Its Euler counterpart is exactly −Euler RW. The RWs apply to
   trades shaped like the counterparty's existing profile.
 
-RW × the gross normalised sensitivity of a new trade with c, of similar profile, approximates its
-capital. The counterparty's Euler allocation is G_c × Euler RW: its CVA plus its policy-implied hedge.
+RW × the gross $ sensitivity (`gross_sens_user`) of a new trade with c, of similar profile, approximates its
+capital. The counterparty's Euler allocation is `gross_sens_user` × Euler RW: its CVA plus its policy-implied hedge.
 
 ## Reading the results
 
@@ -151,7 +160,7 @@ capital. The counterparty's Euler allocation is G_c × Euler RW: its CVA plus it
   so their RW varies only by policy. Multi-factor types (IR DELTA across currencies and tenors, CCS)
   differ by counterparty profile.
 * A positive `unallocated_hedge` in `CPTY_EULER_RECON` means the actual macro hedges deliver less
-  offset than the policies assume (e.g. vega hedged 60% vs a 100% sector_hedge policy). A negative
+  offset than the policies assume (e.g. vega hedged 60% vs a 90% sector_hedge policy). A negative
   value means they deliver more.
 * Runtime is about 1–2 ms per counterparty × risk type; 10,000 counterparties take about 1.5 minutes.
 

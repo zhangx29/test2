@@ -22,18 +22,31 @@ def test_assignment_order(policy_cfg):
         assign_policy("X", "2", "nonexistent", policy_cfg)
 
 
-def test_sector_hedge_beta_sized_index(mk, params, policy_cfg):
-    trade = build_trade(mk(ccs("A", "2", "IG", 1.0)), "sector_hedge", policy_cfg, params)
-    h = trade[trade["source"] == "HDG"].iloc[0]
-    assert (h["bucket"], h["name"], h["series"]) == ("8", "CDX.NA.IG", "1")
-    assert h["amount"] == pytest.approx(1e4 * 0.05 / 0.015)   # RW-matched
+@pytest.mark.parametrize("pol,name", [("sector_hedge", "PROXY:2:IG"), ("specific_hedge", "PROXY:2:IG"),
+                                      ("name_hedge", "A")])
+def test_ccs_hedge_80pct_on_dummy_or_own_name(mk, params, policy_cfg, pol, name):
+    trade = build_trade(mk(ccs("A", "2", "IG", 1.0)), pol, policy_cfg, params)
+    h = trade[trade["source"] == "HDG"]
+    assert len(h) == 1
+    h = h.iloc[0]
+    assert (h["bucket"], h["name"], h["quality"]) == ("2", name, "IG")
+    assert h["amount"] == pytest.approx(0.8 * 1e4)
 
 
-def test_specific_hedge_does_not_hedge_vega(mk, params, policy_cfg):
-    cva = mk(mkt("FX", "vega", "USD", "", 1.0, unit="per_1pct"), mkt("FX", "delta", "USD", "", 1.0, unit="per_1pct"))
-    trade = build_trade(cva, "specific_hedge", policy_cfg, params)
-    hdg = trade[trade["source"] == "HDG"]
-    assert list(hdg["measure"]) == ["delta"]
+@pytest.mark.parametrize("pol,delta,vega,ccs_", [("sector_hedge", 1.0, 0.9, 0.8), ("name_hedge", 1.0, 0.9, 0.8),
+                                                ("specific_hedge", 1.0, 0.0, 0.8), ("unhedged_delta", 1.0, 0.0, 0.0),
+                                                ("unhedged", 0.0, 0.0, 0.0)])
+def test_policy_hedge_ratios(mk, params, policy_cfg, pol, delta, vega, ccs_):
+    cva = mk(mkt("FX", "vega", "USD", "", 1.0, unit="per_1pct"), mkt("FX", "delta", "USD", "", 1.0, unit="per_1pct"),
+             mkt("IR", "delta", "CAD", "5Y", 1.0, unit="per_bp"), ccs("A", "2", "IG", 1.0))
+    trade = build_trade(cva, pol, policy_cfg, params)
+    ratio = lambda rc, m: trade.loc[(trade["source"] == "HDG") & (trade["risk_class"] == rc)
+                                    & (trade["measure"] == m), "amount"].sum() / cva.loc[
+        (cva["risk_class"] == rc) & (cva["measure"] == m), "amount"].sum()
+    assert ratio("FX", "delta") == pytest.approx(delta)
+    assert ratio("IR", "delta") == pytest.approx(delta)
+    assert ratio("FX", "vega") == pytest.approx(vega)
+    assert ratio("CCS", "delta") == pytest.approx(ccs_)
 
 
 # ---- marginal -----------------------------------------------------------
@@ -46,13 +59,13 @@ def test_standalone_unhedged_eff_rw_equals_regulatory_rw(params, policy_cfg):
     assert (g["euler_eff_rw"] - g["reg_rw"]).abs().max() < 1e-12
 
 
-def test_standalone_index_hedge_hand_calc(params, policy_cfg):
-    # IG fin $1 CR01: bucket 2 WS 500; beta index hedge WS -500 in bucket 8 (gamma 45%)
+def test_standalone_proxy_hedge_hand_calc(params, policy_cfg):
+    # IG fin $1 CR01: bucket 2 WS 500; 80% hedge on a dummy name, same tenor, WS -400 (rho_name 50%) + R * 400^2
     grid = ccs_representative_grid(empty_book(), params, policy_cfg)
     row = grid[(grid["policy"] == "sector_hedge") & (grid["bucket"] == "2") & (grid["quality"] == "IG")].iloc[0]
-    k8 = math.sqrt(500**2 + 0.01 * 500**2)
-    exp = math.sqrt(500**2 + k8**2 + 2 * 0.45 * 500 * (-500))
-    assert row["standalone_per_unit"] == pytest.approx(exp)
+    exp = math.sqrt(500**2 + 400**2 - 2 * 0.5 * 500 * 400 + 0.01 * 400**2)
+    assert row["standalone_rw"] == pytest.approx(exp)                  # capital per $1 CR01
+    assert row["standalone_eff_rw"] == pytest.approx(exp / 1e4)        # per normalised unit
 
 
 def test_market_standalone_policy_effect(params, policy_cfg):
@@ -60,7 +73,7 @@ def test_market_standalone_policy_effect(params, policy_cfg):
     fxv = lambda p: g.loc[(p, "FX", "vega", "USDCAD"), "standalone_eff_rw"]
     assert fxv("unhedged") == pytest.approx(1.0)
     assert fxv("specific_hedge") == pytest.approx(1.0)           # vega not hedged under specific policy
-    assert fxv("sector_hedge") == pytest.approx(0.1)             # sqrt(R) * RW
+    assert fxv("sector_hedge") == pytest.approx(math.sqrt(0.1**2 + 0.01 * 0.9**2))   # 90% hedge: WS 0.1, H 0.9
     assert g.loc[("specific_hedge", "FX", "delta", "USDCAD"), "standalone_eff_rw"] == pytest.approx(0.011)
 
 
@@ -164,4 +177,4 @@ def test_normalised_input_matches_per_bp_input(params, policy_cfg):
     pd.testing.assert_series_equal(g_bp["incremental_eff_rw"], g_norm["incremental_eff_rw"])
     # eff_rw is capital per normalised unit: a stand-alone unhedged 10,000 (= $1/bp) CR01 returns the regulatory RW
     alone = ccs_representative_grid(empty_book(), params, policy_cfg).query("policy == 'unhedged'")
-    assert (alone["incremental_per_unit"] - 1e4 * alone["incremental_eff_rw"]).abs().max() < 1e-9
+    assert (alone["incremental_rw"] - 1e4 * alone["incremental_eff_rw"]).abs().max() < 1e-9

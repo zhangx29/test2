@@ -3,11 +3,13 @@
 For each counterparty c (INTERNAL_ENTITY|COUNTERPARTY_ID) and risk type rt (risk class x measure):
 
 * s_c      c's net CVA sensitivity per risk factor in rt; gross G_c = sum |s_c|
-* trade    s_c scaled to a gross size of ``calibration.counterparty.trade_size`` (default 10,000 normalised,
-           i.e. $1/bp for bp factors) plus the hedge c's policy puts on it
-* RW       incremental = [K(book + trade) - K(book)] / size; Euler = ∇K(book)·trade / size; stand-alone
+* trade    s_c scaled to a gross size of ``calibration.counterparty.trade_size`` user units of the risk type
+           (default 1: $1/bp = 10,000 normalised for bp factors, $1/1% = 100 normalised for 1% factors) plus the
+           hedge c's policy puts on it
+* RW       capital change per $1 user-unit sensitivity: incremental = [K(book + trade) - K(book)] / trade_size;
+           Euler = ∇K(book)·trade / trade_size; stand-alone. ``*_eff_rw`` = the same per normalised unit.
 
-so RW x gross normalised sensitivity approximates the capital of a new trade with c of the same profile.
+so RW x gross user-unit sensitivity approximates the capital of a new trade with c of the same profile.
 Euler allocation of c at actual size: G_c x Euler RW (CVA sensitivities plus policy-implied hedge).
 """
 from __future__ import annotations
@@ -18,11 +20,18 @@ import numpy as np
 import pandas as pd
 
 from .engine import FACTOR_KEY
-from .loader import COLUMNS
+from .loader import COLUMNS, UNIT_SCALE
 from .marginal import MarginalEvaluator
 from .policy import assign_policy, hedge_for
 
 UNMAPPED = "UNMAPPED"
+BP_TYPES = {("CCS", "delta"), ("IR", "delta"), ("RCS", "delta")}
+
+
+def unit_of(rc: str, measure: str, policy_cfg: dict[str, Any]) -> str:
+    """User unit of a risk type for counterparty RWs (per_bp for CCS/IR/RCS delta, per_1pct otherwise)."""
+    units = policy_cfg["calibration"].get("counterparty", {}).get("units") or {}
+    return units.get(f"{rc}.{measure}") or ("per_bp" if (rc, measure) in BP_TYPES else "per_1pct")
 
 
 def _split(cpty: str) -> tuple[str, str]:
@@ -53,11 +62,15 @@ def counterparty_table(book: pd.DataFrame, policy_cfg: dict[str, Any]) -> pd.Dat
 
 def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict[str, Any],
                     ev: MarginalEvaluator | None = None, attrs: pd.DataFrame | None = None) -> pd.DataFrame:
-    size = float(policy_cfg["calibration"].get("counterparty", {}).get("trade_size", 1e4))
+    size = float(policy_cfg["calibration"].get("counterparty", {}).get("trade_size", 1.0))
+    if size <= 0:
+        raise ValueError("calibration.counterparty.trade_size must be positive")
     attrs = (attrs if attrs is not None else counterparty_table(book, policy_cfg)).set_index("counterparty")
     cols = ["counterparty", "internal_entity", "counterparty_id", "policy", "sector", "quality", "risk_class",
-            "measure", "n_factors", "gross_sens", "incremental_rw", "euler_rw", "standalone_rw",
-            "incremental_rw_reverse", "euler_alloc", "cva_euler"]
+            "measure", "unit", "trade_size", "n_factors", "gross_sens", "gross_sens_user",
+            "incremental_rw", "euler_rw", "standalone_rw", "incremental_rw_reverse",
+            "incremental_eff_rw", "euler_eff_rw", "standalone_eff_rw", "incremental_eff_rw_reverse",
+            "euler_alloc", "cva_euler"]
     cva = book[(book["source"] == "CVA") & (book["counterparty"] != "")]
     net = (cva.groupby(["counterparty"] + FACTOR_KEY, sort=True, dropna=False)
            .agg(quality=("quality", "first"), group=("group", "first"), amount=("amount", "sum")).reset_index())
@@ -68,8 +81,11 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
         return pd.DataFrame(columns=cols)
     net["cell"] = net.groupby(cell_cols, sort=True).ngroup()
     net["cell_policy"] = net["counterparty"].map(attrs["policy"])
-    # unit trades: own net profile scaled to the gross size; policy hedge legs built in one pass per policy
-    units = net.assign(source="CVA", amount=net["amount"] / net["gross"] * size, policy="")
+    net["unit"] = [unit_of(rc, m, policy_cfg) for rc, m in zip(net["risk_class"], net["measure"])]
+    net["scale"] = net["unit"].map(UNIT_SCALE)
+    # unit trades: own net profile scaled to trade_size user units (gross, normalised: size x scale); policy hedge
+    # legs built in one pass per policy
+    units = net.assign(source="CVA", amount=net["amount"] / net["gross"] * size * net["scale"], policy="")
     legs = []
     for pol, u in units.groupby("cell_policy"):
         legs.append(hedge_for(u[COLUMNS + ["cell"]], pol, policy_cfg, params))
@@ -90,27 +106,34 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
         inc, eul, alone = ev.evaluate_delta(key, pos_u[iu], amt_u[iu], pos_h[ih], amt_h[ih])
         # trade reducing the existing exposure (opposite profile and hedge); its Euler RW is exactly -euler_rw
         inc_rev = ev.evaluate_delta(key, pos_u[iu], -amt_u[iu], pos_h[ih], -amt_h[ih])[0]
-        gross = float(f0["gross"])
+        gross, scale = float(f0["gross"]), float(f0["scale"])
+        size_n = size * scale                      # normalised gross size of the probe
         a = attrs.loc[f0["counterparty"]]
         rows.append(dict(counterparty=f0["counterparty"], internal_entity=a["internal_entity"],
                          counterparty_id=a["counterparty_id"], policy=a["policy"], sector=a["sector"],
-                         quality=a["quality"], risk_class=f0["risk_class"], measure=f0["measure"], n_factors=len(iu),
-                         gross_sens=gross, incremental_rw=inc / size, euler_rw=eul / size, standalone_rw=alone / size,
+                         quality=a["quality"], risk_class=f0["risk_class"], measure=f0["measure"], unit=f0["unit"],
+                         trade_size=size, n_factors=len(iu), gross_sens=gross, gross_sens_user=gross / scale,
+                         incremental_rw=inc / size, euler_rw=eul / size, standalone_rw=alone / size,
                          incremental_rw_reverse=inc_rev / size,
-                         euler_alloc=eul / size * gross, cva_euler=float(cva_e[iu].sum())))
+                         incremental_eff_rw=inc / size_n, euler_eff_rw=eul / size_n, standalone_eff_rw=alone / size_n,
+                         incremental_eff_rw_reverse=inc_rev / size_n,
+                         euler_alloc=eul / size_n * gross, cva_euler=float(cva_e[iu].sum())))
     return pd.DataFrame(rows, columns=cols)
 
 
 def cluster_rw(cpty_rw: pd.DataFrame, policies: list[str]) -> pd.DataFrame:
-    """Gross-sensitivity-weighted RW per policy x sector x quality x risk type (selected policies only)."""
+    """Gross-sensitivity-weighted RW per policy x sector x quality x risk type (selected policies only).
+
+    Cells of one risk type share a unit, so weighting by normalised or user-unit gross sensitivity is the same."""
     d = cpty_rw[cpty_rw["policy"].isin(policies)]
-    rws = ["incremental_rw", "euler_rw", "standalone_rw", "incremental_rw_reverse"]
-    cols = ["policy", "sector", "quality", "risk_class", "measure", "n_cpty", "gross_sens"] + rws
+    rws = ["incremental_rw", "euler_rw", "standalone_rw", "incremental_rw_reverse",
+           "incremental_eff_rw", "euler_eff_rw", "standalone_eff_rw", "incremental_eff_rw_reverse"]
+    cols = ["policy", "sector", "quality", "risk_class", "measure", "unit", "n_cpty", "gross_sens"] + rws
     if d.empty:
         return pd.DataFrame(columns=cols)
     w = d.assign(**{f"_{c}": d[c] * d["gross_sens"] for c in rws})
     g = w.groupby(["policy", "sector", "quality", "risk_class", "measure"], sort=True).agg(
-        n_cpty=("counterparty", "nunique"), gross_sens=("gross_sens", "sum"),
+        unit=("unit", "first"), n_cpty=("counterparty", "nunique"), gross_sens=("gross_sens", "sum"),
         **{f"_{c}": (f"_{c}", "sum") for c in rws}).reset_index()
     for c in rws:
         g[c] = g[f"_{c}"] / g["gross_sens"]

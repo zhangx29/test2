@@ -10,12 +10,11 @@
 #   sizing: cr01  -> s_Hdg = ratio * s_CVA
 #           beta  -> s_Hdg = ratio * s_CVA * RW_counterparty / RW_hedge   (risk-weight matched; CCS only)
 policies:
+  # Nothing hedged.
   unhedged: {}
 
-  # Names under a specific hedging policy, e.g. SSA / MDB: no CVA charge, so vega is not hedged
-  # and single-name CDS protection is generally not bought (set CCS ratio > 0 if it is).
-  specific_hedge:
-    CCS.delta:   {instrument: single_name, ratio: 0.0, sizing: cr01}
+  # Unhedged names whose market delta is still hedged in full; no vega or credit hedge.
+  unhedged_delta:
     IR.delta:    {instrument: same_factor, ratio: 1.0}
     IR.vega:     {instrument: same_factor, ratio: 0.0}
     FX.delta:    {instrument: same_factor, ratio: 1.0}
@@ -27,25 +26,49 @@ policies:
     CMDTY.delta: {instrument: same_factor, ratio: 1.0}
     CMDTY.vega:  {instrument: same_factor, ratio: 0.0}
 
-  # General counterparty population: market delta and vega hedged, credit hedged with indices.
-  sector_hedge:
-    CCS.delta:
-      instrument: qualified_index
-      ratio: 1.0
-      sizing: beta
-      index:
-        IG: {name: CDX.NA.IG, series: "1"}
-        HY: {name: CDX.NA.HY, series: "1"}
+  # SSA / MDB names (e.g. WORLD, the 7 SSAs): market delta 100%, vega not hedged,
+  # credit 80% hedged by a different (dummy) name in the same sector & rating (IG/HY).
+  specific_hedge:
+    CCS.delta:   {instrument: sector_proxy, ratio: 0.8, sizing: cr01}
     IR.delta:    {instrument: same_factor, ratio: 1.0}
-    IR.vega:     {instrument: same_factor, ratio: 1.0}
+    IR.vega:     {instrument: same_factor, ratio: 0.0}
     FX.delta:    {instrument: same_factor, ratio: 1.0}
-    FX.vega:     {instrument: same_factor, ratio: 1.0}
+    FX.vega:     {instrument: same_factor, ratio: 0.0}
     RCS.delta:   {instrument: same_factor, ratio: 1.0}
-    RCS.vega:    {instrument: same_factor, ratio: 1.0}
+    RCS.vega:    {instrument: same_factor, ratio: 0.0}
     EQ.delta:    {instrument: same_factor, ratio: 1.0}
-    EQ.vega:     {instrument: same_factor, ratio: 1.0}
+    EQ.vega:     {instrument: same_factor, ratio: 0.0}
     CMDTY.delta: {instrument: same_factor, ratio: 1.0}
-    CMDTY.vega:  {instrument: same_factor, ratio: 1.0}
+    CMDTY.vega:  {instrument: same_factor, ratio: 0.0}
+
+  # Name-specific hedging (e.g. IPL): market delta 100%, vega 90%, credit 80% hedged by its own name.
+  name_hedge:
+    CCS.delta:   {instrument: single_name, ratio: 0.8, sizing: cr01}
+    IR.delta:    {instrument: same_factor, ratio: 1.0}
+    IR.vega:     {instrument: same_factor, ratio: 0.9}
+    FX.delta:    {instrument: same_factor, ratio: 1.0}
+    FX.vega:     {instrument: same_factor, ratio: 0.9}
+    RCS.delta:   {instrument: same_factor, ratio: 1.0}
+    RCS.vega:    {instrument: same_factor, ratio: 0.9}
+    EQ.delta:    {instrument: same_factor, ratio: 1.0}
+    EQ.vega:     {instrument: same_factor, ratio: 0.9}
+    CMDTY.delta: {instrument: same_factor, ratio: 1.0}
+    CMDTY.vega:  {instrument: same_factor, ratio: 0.9}
+
+  # General counterparty population: market delta 100%, vega 90%,
+  # credit 80% hedged by a different (dummy) name in the same sector & rating (IG/HY).
+  sector_hedge:
+    CCS.delta:   {instrument: sector_proxy, ratio: 0.8, sizing: cr01}
+    IR.delta:    {instrument: same_factor, ratio: 1.0}
+    IR.vega:     {instrument: same_factor, ratio: 0.9}
+    FX.delta:    {instrument: same_factor, ratio: 1.0}
+    FX.vega:     {instrument: same_factor, ratio: 0.9}
+    RCS.delta:   {instrument: same_factor, ratio: 1.0}
+    RCS.vega:    {instrument: same_factor, ratio: 0.9}
+    EQ.delta:    {instrument: same_factor, ratio: 1.0}
+    EQ.vega:     {instrument: same_factor, ratio: 0.9}
+    CMDTY.delta: {instrument: same_factor, ratio: 1.0}
+    CMDTY.vega:  {instrument: same_factor, ratio: 0.9}
 
 # Policy of an existing counterparty, first match wins:
 #   1. 'policy' column on its CVA rows in the book
@@ -54,16 +77,29 @@ policies:
 #   4. default
 assignment:
   default: sector_hedge
-  counterparties: {}          # e.g. {"World Bank": specific_hedge}
+  counterparties: {}          # e.g. {"WORLD": specific_hedge, "IPL": name_hedge, "IE1|C123": unhedged_delta}
   ccs_buckets:
     "1a": specific_hedge      # sovereigns, central banks, MDBs
 
 calibration:
   trade_size: 1.0             # representative grids: units added before dividing back to per-unit
   # Counterparty-level RWs: per counterparty x risk type, a trade with the counterparty's own net sensitivity
-  # profile scaled to this gross normalised size (10,000 = $1/bp) plus its policy hedge.
+  # profile scaled to a gross size of trade_size user units (1 = $1/bp CR01 or DV01 = 10,000 normalised;
+  # $1 per 1% = 100 normalised) plus its policy hedge. RW = capital change per $1 user-unit sensitivity.
   counterparty:
-    trade_size: 10000
+    trade_size: 1.0
+    units:                    # user unit per risk type (missing: per_bp for CCS/IR/RCS delta, per_1pct otherwise)
+      CCS.delta: per_bp
+      IR.delta: per_bp
+      RCS.delta: per_bp
+      FX.delta: per_1pct
+      EQ.delta: per_1pct
+      CMDTY.delta: per_1pct
+      IR.vega: per_1pct
+      FX.vega: per_1pct
+      RCS.vega: per_1pct
+      EQ.vega: per_1pct
+      CMDTY.vega: per_1pct
     cluster_policies: [sector_hedge]   # clustered by sector x IG/HY; other policies reported per counterparty
   ccs:
     unit: per_bp              # unit trade = $1/bp CR01 = 10,000 normalised sensitivity

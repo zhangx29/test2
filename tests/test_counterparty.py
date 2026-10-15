@@ -113,7 +113,7 @@ def test_specific_policy_vega_costs_more_than_sector_policy(calib):
 
 def test_incremental_converges_to_euler(params, policy_cfg):
     book = cpty_book(params, n_cpty=10, seed=3)
-    rw = calibrate_counterparties(book, params, _cfg(policy_cfg, trade_size=1e-2))["cpty_rw"]
+    rw = calibrate_counterparties(book, params, _cfg(policy_cfg, trade_size=1e-6))["cpty_rw"]
     tol = 1e-4 * rw["standalone_rw"].abs() + 1e-12
     assert ((rw["incremental_rw"] - rw["euler_rw"]).abs() <= tol).all()
 
@@ -135,8 +135,33 @@ def test_single_factor_standalone_rw_is_regulatory(params, policy_cfg, mk):
     cfg = copy.deepcopy(policy_cfg)
     cfg["assignment"]["default"] = "unhedged"
     rw = calibrate_counterparties(book, params, cfg)["cpty_rw"].iloc[0]
-    assert rw["standalone_rw"] == pytest.approx(0.11)
+    assert rw["unit"] == "per_1pct"
+    assert rw["standalone_eff_rw"] == pytest.approx(0.11)
+    assert rw["standalone_rw"] == pytest.approx(0.11 * 100)          # per $1 per 1% move
     assert rw["gross_sens"] == pytest.approx(300.0)
+    assert rw["gross_sens_user"] == pytest.approx(3.0)
+
+
+def test_ccs_rw_is_per_dollar_cr01(params, policy_cfg, mk):
+    book = mk(dict(ccs("A", "2", "IG", 2.0), counterparty="IE1|C1"))
+    cfg = copy.deepcopy(policy_cfg)
+    cfg["assignment"]["default"] = "unhedged"
+    rw = calibrate_counterparties(book, params, cfg)["cpty_rw"].iloc[0]
+    assert rw["unit"] == "per_bp"
+    # a $1 CR01 (10,000 normalised) stand-alone unhedged IG financial: capital = 0.05 * 10,000
+    assert rw["standalone_rw"] == pytest.approx(500.0)
+    assert rw["standalone_eff_rw"] == pytest.approx(0.05)
+
+
+def test_rw_scaling_and_allocation_consistent(calib):
+    _, res = calib
+    rw = res["cpty_rw"]
+    scale = rw["unit"].map({"per_bp": 1e4, "per_1pct": 1e2})
+    for c in ("incremental", "euler", "standalone"):
+        assert np.allclose(rw[f"{c}_rw"], rw[f"{c}_eff_rw"] * scale)
+    assert np.allclose(rw["euler_alloc"], rw["euler_rw"] * rw["gross_sens_user"])
+    assert np.allclose(rw["euler_alloc"], rw["euler_eff_rw"] * rw["gross_sens"])
+    assert set(rw.loc[rw["measure"] == "vega", "unit"]) == {"per_1pct"}
 
 
 # ---- name attributes across separate CVA / hedge rows ----------------------------------
@@ -179,7 +204,7 @@ def test_conflicting_name_attributes_are_flagged(params):
 
 def test_reverse_direction(params, policy_cfg):
     book = cpty_book(params, n_cpty=8, seed=5)
-    rw = calibrate_counterparties(book, params, _cfg(policy_cfg, trade_size=1e-2))["cpty_rw"]
+    rw = calibrate_counterparties(book, params, _cfg(policy_cfg, trade_size=1e-6))["cpty_rw"]
     # at the margin, reducing exposure releases capital at the Euler rate
     tol = 1e-4 * rw["standalone_rw"].abs() + 1e-12
     assert ((rw["incremental_rw_reverse"] + rw["euler_rw"]).abs() <= tol).all()
