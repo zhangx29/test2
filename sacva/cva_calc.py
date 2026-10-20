@@ -39,7 +39,7 @@ _NULLS = {"", "[NULL]", "NULL", "NAN", "NONE", "<NA>"}
 
 RISK_TYPE_IN = {"CCS": "CCS", "IR": "IR", "FX": "FX", "EQ": "EQ", "CO": "CMDTY", "CMDTY": "CMDTY", "RCS": "RCS"}
 RISK_TYPE_OUT = {"CCS": "CCS", "IR": "IR", "FX": "FX", "EQ": "EQ", "CMDTY": "CO", "RCS": "RCS"}
-IR_DELTA_ALIASES = {"INFLATION": "INFL", "CURVE": "PARALLEL"}
+IR_DELTA_ALIASES = {"INFLATION": "INFL", "CURVE": "PARALLEL", "IR": "PARALLEL"}   # IR: other-currency curve
 IR_VEGA_IN = {"IR": "IRVOL", "IRVOL": "IRVOL", "INFL": "INFLVOL", "INFLATION": "INFLVOL", "INFLVOL": "INFLVOL"}
 IR_VEGA_OUT = {"IRVOL": "IR", "INFLVOL": "INFL"}
 QUALITY_IN = {"IG": "IG", "HYNR": "HY", "HY": "HY", "NR": "HY"}

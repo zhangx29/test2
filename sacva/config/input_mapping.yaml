@@ -1,0 +1,32 @@
+# Mapping of the counterparty-level CVA sensitivity feed (CVA_LD_SENS) into the CVA_CALC_RF format
+# (`sacva prep`). See sacva/prep.py for the column-by-column rules.
+
+# CVA_LD_SENS RISK_TYPE -> CVA_CALC_RF RISK_MEASURE / RISK_TYPE ('Risk Measure and Type Mapping' tab)
+risk_types:
+  Risk_Commodity:    {measure: DELTA, type: CO}
+  Risk_CommodityVol: {measure: VEGA,  type: CO}
+  Risk_Credit:       {measure: DELTA, type: CCS}
+  Risk_Equity:       {measure: DELTA, type: EQ}
+  Risk_EquityVol:    {measure: VEGA,  type: EQ}
+  Risk_FX:           {measure: DELTA, type: FX}
+  Risk_FXVol:        {measure: VEGA,  type: FX}
+  Risk_IRCurve:      {measure: DELTA, type: IR}
+  Risk_IRVol:        {measure: VEGA,  type: IR}
+
+# IR delta: RISK_FACTOR = TENOR for these currencies ('IR FX' tab, TERM = Y), else ir_other_factor
+ir_major_currencies: [AUD, CAD, EUR, GBP, JPY, SEK, USD]
+ir_other_factor: PARALLEL
+
+# RISK_SUB_BUCKET / RISK_BUCKET come from BUCKET for these types, from QUALIFIER otherwise
+bucket_from_bucket: [CO, EQ]
+
+reporting_currency: CAD
+
+# counterparties without a UEN in the CPTY_CD -> UEN mapping are named <cp_prefix><CPTY_CD> in CVA_CALC_RF
+cp_prefix: "CP:"
+
+# SK_CVA = cva_sign * amount_scale[RISK_TYPE] * SENSITIVITY_AMOUNT converted to reporting_currency.
+# Defaults (1, no scaling) assume CVA_LD_SENS is already normalised and in the CVA_CALC_RF sign convention;
+# check the ratio column of the <out>_recon_summary.csv file (should be 1 for every risk type).
+cva_sign: 1
+amount_scale: {}           # e.g. {CCS: 10000} if Risk_Credit were in $/bp

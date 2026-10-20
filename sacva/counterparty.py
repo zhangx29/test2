@@ -61,7 +61,10 @@ def counterparty_table(book: pd.DataFrame, policy_cfg: dict[str, Any]) -> pd.Dat
 
 
 def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict[str, Any],
-                    ev: MarginalEvaluator | None = None, attrs: pd.DataFrame | None = None) -> pd.DataFrame:
+                    ev: MarginalEvaluator | None = None, attrs: pd.DataFrame | None = None,
+                    risk_types: set[tuple[str, str]] | None = None) -> pd.DataFrame:
+    """RWs per counterparty x risk type, each counterparty under attrs['policy']; ``risk_types`` limits the
+    (risk_class, measure) cells priced (default: all)."""
     size = float(policy_cfg["calibration"].get("counterparty", {}).get("trade_size", 1.0))
     if size <= 0:
         raise ValueError("calibration.counterparty.trade_size must be positive")
@@ -72,6 +75,8 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
             "incremental_eff_rw", "euler_eff_rw", "standalone_eff_rw", "incremental_eff_rw_reverse",
             "euler_alloc", "cva_euler"]
     cva = book[(book["source"] == "CVA") & (book["counterparty"] != "")]
+    if risk_types is not None:
+        cva = cva[[k in risk_types for k in zip(cva["risk_class"], cva["measure"])]]
     net = (cva.groupby(["counterparty"] + FACTOR_KEY, sort=True, dropna=False)
            .agg(quality=("quality", "first"), group=("group", "first"), amount=("amount", "sum")).reset_index())
     cell_cols = ["counterparty", "risk_class", "measure"]

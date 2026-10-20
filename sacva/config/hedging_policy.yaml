@@ -121,3 +121,21 @@ calibration:
     - {risk_class: EQ,    measure: vega,  bucket: "5", risk_factor: "",    unit: per_1pct}
     - {risk_class: CMDTY, measure: delta, bucket: "2", risk_factor: "",    unit: per_1pct}
     - {risk_class: CMDTY, measure: vega,  bucket: "2", risk_factor: "",    unit: per_1pct}
+
+# SACVAWeights.csv (`sacva weights`): production pricing-weight file.
+# For every counterparty, incremental RWs are computed under each policy below. Sector rows hold the
+# gross-sensitivity-weighted RW per hedgeType x sector (1_A..7) x IG/HY: tenor columns = CCS delta RW per $1/bp CR01,
+# vegaCost = RW per $1 per 1% vega across all vega risk types. Market delta RWs are not part of the file.
+sacva_weights:
+  hedge_types:                  # production hedgeType label -> policy, in output order
+    specfic_hedge: name_hedge   # (sic) label spelled as in production
+    sector_hedge: sector_hedge
+    unhedged: unhedged_delta
+  rw: incremental_rw            # CPTY_RW column used (incremental_rw | euler_rw | standalone_rw)
+  buckets: ["1a", "1b", "2", "3", "4", "5", "6", "7"]
+  qualities: [IG, HY]
+  tenors: [6m, 1y, 3y, 5y, 10y]
+  # Counterparties priced on their own line (cptyCode = COUNTERPARTY_ID) under the given policy, which must be
+  # one of the hedge_types policies. They also stay in their sector rows. e.g.
+  #   {IPL: name_hedge, WORLD: unhedged_delta, EIB: unhedged_delta, IDASS: unhedged_delta, ...}
+  own_lines: {}

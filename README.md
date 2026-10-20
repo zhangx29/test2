@@ -15,6 +15,7 @@ python examples/make_example_book.py                     # synthetic CVA_CALC_RF
 sacva capital   --book examples/cva_calc_rf.csv --out out/cva_calc.xlsx      # CVA_CALC_RB / CVA_CALC_RT
 sacva marginal  --book examples/cva_calc_rf.csv --trade examples/trade_rf.csv --policy specific_hedge
 sacva calibrate --book examples/cva_calc_rf.csv --out out/rw_grid.xlsx       # or --out out/csv_dir
+sacva weights   --book examples/cva_calc_rf.csv --out out/SACVAWeights.csv   # production pricing weights
 pytest
 ```
 
@@ -63,6 +64,73 @@ reported back in the input convention, and a unit CCS trade means SK_CVA = −10
 | `CVA_CALC_RT` | `CALC_RUN_ID, BUS_DT, RISK_MEASURE, RISK_TYPE, K_RT` per risk type (e.g. CCS DELTA) |
 | `RECON_BREAKS` | only when input RISK_WEIGHT / NW_SENSITIVITY disagree with the OSFI-derived values |
 | `NAME_CONFLICTS` | only when a CCS NAME carries different CREDIT_QUALITY / RISK_SUB_BUCKET / CREDIT_RELATED on different rows (e.g. CVA vs hedge feed); resolved from the CVA rows, and a blank parent never overrides a populated one |
+
+## Building the input: `sacva prep`
+
+```bash
+sacva prep --calc-rf CVA_CALC_RF_20260930.csv --ld-sens CVA_LD_SENS_20260930.csv            --mkt-fx CVA_LD_MKT_FX_20260930.csv --uen-map CPTY_UEN.csv --out cva_calc_rf_20260930.csv
+```
+
+Builds the counterparty-level CVA_CALC_RF from the bank feeds, read with their own column names:
+
+* **CVA_CALC_RF**: risk-factor level, with CVA and hedges already mapped and no counterparty. It supplies
+  the hedge rows and the attribute / RW lookups.
+* **CVA_LD_SENS**: counterparty-level CVA sensitivities before mapping.
+* **CVA_LD_MKT_FX**: FX rates. `CADUSD 0.702765` means USD per 1 CAD.
+* **CPTY_CD → UEN map**: `UEN, CPTY_CD`, the distinct pairs from CVA_LD_TRADE.
+
+Static mappings (RISK_TYPE table, the 7 major IR currencies) are in `sacva/config/input_mapping.yaml`
+(`--mapping` to override).
+
+| output rows | rule |
+|---|---|
+| hedges | CVA_CALC_RF rows with `SK_HEDGE ≠ 0`. `SK_CVA = 0`, `NW = SK_HEDGE × RW`, ids blank |
+| market CVA | `RISK_MEASURE` / `RISK_TYPE` from the RISK_TYPE mapping. `RISK_SUB_BUCKET = RISK_BUCKET` = `BUCKET` for CO/EQ, else `QUALIFIER`. `RISK_FACTOR` = `TENOR` for IR delta in AUD CAD EUR GBP JPY SEK USD, `PARALLEL` for other IR delta, else the RISK_TYPE (IR, FX, EQ, CO). TENOR / NAME / CREDIT_* blank. RW looked up in CVA_CALC_RF on measure + type + sub-bucket + bucket + factor (`IR` and `PARALLEL` both match an other-currency curve) |
+| CCS CVA | UEN via `COUNTERPARTY_ID`, or `CP:<CPTY_CD>` when unmapped. Sub-bucket, bucket, CREDIT_RTG / QUALITY / RELATED and RW from the CVA_CALC_RF CCS rows with `NAME = UEN`. `NAME = UEN`, `RISK_FACTOR = <UEN>_<TENOR>` |
+| all CVA | `SK_CVA` = `SENSITIVITY_AMOUNT` converted to CAD (× `cva_sign` × `amount_scale`, default 1). `SK_HEDGE = 0`, `NW = SK_CVA × RW`. Summed per INTERNAL_ENTITY, COUNTERPARTY_ID and factor |
+
+Companion files:
+
+* `<out>_recon.csv`: Σ counterparty SK_CVA vs CVA_CALC_RF SK_CVA, per factor.
+* `<out>_recon_summary.csv`: the same per risk type, with `RATIO`.
+* `<out>_exceptions.csv`: rows dropped, e.g. an unmapped RISK_TYPE or a UEN with no CCS row in CVA_CALC_RF,
+  and factors priced at the OSFI RW because they are absent from CVA_CALC_RF.
+
+`RATIO` should be 1 for every risk type:
+
+| `RATIO` | meaning |
+|---|---|
+| ≈ 0.49 or ≈ 2.0 | FX direction is inverted |
+| ≈ 1e4 or ≈ 1e2 | a missing normalisation (set `amount_scale`) |
+| ≈ −1 | a sign difference (set `cva_sign`) |
+
+## SACVAWeights.csv: `sacva weights`
+
+Writes the production weight file:
+
+* column header `cptyCode, hedgeType, bucket, igHy, vegaCost, 6m, 1y, 3y, 5y, 10y`;
+* a type row `string, string, object, string, double?, …`;
+* 48 sector rows: hedge type × IG/HY × `1_A, 1_B, 2…7`;
+* one row per name in `sacva_weights.own_lines`.
+
+Every counterparty is priced under each hedge type, regardless of its assigned policy (`sacva_weights.hedge_types`):
+
+| hedgeType (production label) | policy | market delta | vega | CCS |
+|---|---|---|---|---|
+| `specfic_hedge` (sic) | `name_hedge` | 100% | 90% | 80%, own name |
+| `sector_hedge` | `sector_hedge` | 100% | 90% | 80%, dummy same-sector name |
+| `unhedged` | `unhedged_delta` | 100% | 0% | 0% |
+
+* **Tenor columns** (equal across 6m…10y): Σ(incremental RW × gross CR01) / Σ gross CR01 over the counterparties
+  in the sector × IG/HY cell (sector / quality of the counterparty's dominant CCS name). Per $1/bp CR01.
+* **`vegaCost`**: the same over all vega risk types (IR, FX, EQ, CO). Per $1 per 1% vega.
+* **Market delta RWs** are not part of the file.
+* **Empty cells** fall back to the new-name CCS grid and the hedge type's portfolio-wide vegaCost.
+* **`own_lines`** (`{COUNTERPARTY_ID: policy}`, e.g. IPL: name_hedge, the SSAs: unhedged_delta): one line each, with
+  `hedgeType / bucket / igHy = NA`, priced under that policy. These counterparties also stay in their sector rows.
+
+`<out>_detail.csv` gives the policy, the source (counterparties / new-name grid / fallback), the number of
+counterparties and the gross sensitivity behind every value.
 
 ## Input format: generic (internal, used by tests)
 
@@ -176,6 +244,9 @@ sacva/engine.py     capital + closed-form gradient
 sacva/policy.py     policy assignment and hedge generation
 sacva/marginal.py   incremental / Euler / stand-alone marginal capital
 sacva/calibrate.py  effective-RW grids
+sacva/prep.py       CVA_LD_SENS + CVA_CALC_RF + FX + UEN map -> counterparty-level CVA_CALC_RF
+sacva/weights.py    SACVAWeights.csv
+sacva/config/input_mapping.yaml  CVA_LD_SENS -> CVA_CALC_RF mapping tables
 sacva/report.py     Excel / CSV output
 sacva/cli.py        command line
 ```

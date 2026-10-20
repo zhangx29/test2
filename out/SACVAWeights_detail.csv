@@ -1,0 +1,49 @@
+cptyCode,hedgeType,bucket,igHy,policy,ccs_rw,vegaCost,ccs_source,ccs_n_cpty,ccs_gross_cr01,vega_source,vega_n_cpty,vega_gross
+NA,specfic_hedge,1_A,IG,name_hedge,1.7428566405771813,9.625701998122503,counterparties,3,8773.789999999999,counterparties,3,31723.46
+NA,specfic_hedge,1_B,IG,name_hedge,3.909752794025713,9.611966218782277,counterparties,2,4349.67,counterparties,2,12816.449999999999
+NA,specfic_hedge,2,IG,name_hedge,72.63140945162118,9.767582351238586,counterparties,3,9511.33,counterparties,3,30687.410000000003
+NA,specfic_hedge,3,IG,name_hedge,15.557501855306327,9.808689186646383,counterparties,1,2825.04,counterparties,1,7809.4
+NA,specfic_hedge,4,IG,name_hedge,14.583161514718086,9.33676267086606,counterparties,1,1380.75,counterparties,1,2882.98
+NA,specfic_hedge,5,IG,name_hedge,12.051176160108298,9.699799220225053,counterparties,1,2625.16,counterparties,1,5429.62
+NA,specfic_hedge,6,IG,name_hedge,0.03790657501667738,9.566149789023921,counterparties,1,2683.15,counterparties,1,11928.91
+NA,specfic_hedge,7,IG,name_hedge,23.704500462394208,9.632776845359444,counterparties,1,1920.93,counterparties,1,8936.210000000001
+NA,specfic_hedge,1_A,HY,name_hedge,4.769144025165588,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,specfic_hedge,1_B,HY,name_hedge,9.538919398095459,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,specfic_hedge,2,HY,name_hedge,127.38099890155718,9.541777057503774,counterparties,1,766.45,counterparties,1,4013.45
+NA,specfic_hedge,3,HY,name_hedge,35.772741415537894,9.749649355189524,counterparties,1,1166.8,counterparties,1,3913.96
+NA,specfic_hedge,4,HY,name_hedge,55.68515058187768,9.400028012107791,counterparties,1,1004.39,counterparties,1,3499.3199999999997
+NA,specfic_hedge,5,HY,name_hedge,13.375916842836887,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,specfic_hedge,6,HY,name_hedge,0.05115319136530161,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,specfic_hedge,7,HY,name_hedge,23.09611247293651,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,sector_hedge,1_A,IG,sector_hedge,2.823292717027515,9.625701998122503,counterparties,3,8773.789999999999,counterparties,3,31723.46
+NA,sector_hedge,1_B,IG,sector_hedge,7.764532300847391,9.611966218782277,counterparties,2,4349.67,counterparties,2,12816.449999999999
+NA,sector_hedge,2,IG,sector_hedge,165.5176724173612,9.767582351238586,counterparties,3,9511.33,counterparties,3,30687.410000000003
+NA,sector_hedge,3,IG,sector_hedge,38.0230619632639,9.808689186646383,counterparties,1,2825.04,counterparties,1,7809.4
+NA,sector_hedge,4,IG,sector_hedge,30.58738488703966,9.33676267086606,counterparties,1,1380.75,counterparties,1,2882.98
+NA,sector_hedge,5,IG,sector_hedge,36.160061600618064,9.699799220225053,counterparties,1,2625.16,counterparties,1,5429.62
+NA,sector_hedge,6,IG,sector_hedge,0.1144021302461624,9.566149789023921,counterparties,1,2683.15,counterparties,1,11928.91
+NA,sector_hedge,7,IG,sector_hedge,71.13514549098909,9.632776845359444,counterparties,1,1920.93,counterparties,1,8936.210000000001
+NA,sector_hedge,1_A,HY,sector_hedge,4.7749653360806406,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,sector_hedge,1_B,HY,sector_hedge,9.562204426620156,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,sector_hedge,2,HY,sector_hedge,224.5150072644465,9.541777057503774,counterparties,1,766.45,counterparties,1,4013.45
+NA,sector_hedge,3,HY,sector_hedge,86.3978885114193,9.749649355189524,counterparties,1,1166.8,counterparties,1,3913.96
+NA,sector_hedge,4,HY,sector_hedge,149.0247118663974,9.400028012107791,counterparties,1,1004.39,counterparties,1,3499.3199999999997
+NA,sector_hedge,5,HY,sector_hedge,13.450899230781943,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,sector_hedge,6,HY,sector_hedge,0.051493745762854815,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,sector_hedge,7,HY,sector_hedge,23.249331052880734,9.657145008369962,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,unhedged,1_A,IG,unhedged_delta,8.714557730687623,88.17792415661009,counterparties,3,8773.789999999999,counterparties,3,31723.46
+NA,unhedged,1_B,IG,unhedged_delta,19.549799970354883,88.02210968317864,counterparties,2,4349.67,counterparties,2,12816.449999999999
+NA,unhedged,2,IG,unhedged_delta,362.28002041437605,89.32588908989275,counterparties,3,9511.33,counterparties,3,30687.410000000003
+NA,unhedged,3,IG,unhedged_delta,77.79537794878706,89.51831711304249,counterparties,1,2825.04,counterparties,1,7809.4
+NA,unhedged,4,IG,unhedged_delta,72.9253831510432,85.89572059249285,counterparties,1,1380.75,counterparties,1,2882.98
+NA,unhedged,5,IG,unhedged_delta,60.259332433342934,88.65807748748307,counterparties,1,2625.16,counterparties,1,5429.62
+NA,unhedged,6,IG,unhedged_delta,0.19175033923238513,87.53145723577478,counterparties,1,2683.15,counterparties,1,11928.91
+NA,unhedged,7,IG,unhedged_delta,118.54539049277082,88.15466813518488,counterparties,1,1920.93,counterparties,1,8936.210000000001
+NA,unhedged,1_A,HY,unhedged_delta,23.850869231391698,88.38788875472011,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,unhedged,1_B,HY,unhedged_delta,47.71519241249189,88.38788875472011,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,unhedged,2,HY,unhedged_delta,636.993150614202,87.48841819002536,counterparties,1,766.45,counterparties,1,4013.45
+NA,unhedged,3,HY,unhedged_delta,178.90658753039315,89.02599436865236,counterparties,1,1166.8,counterparties,1,3913.96
+NA,unhedged,4,HY,unhedged_delta,278.4902602401562,86.34941747385216,counterparties,1,1004.39,counterparties,1,3499.3199999999997
+NA,unhedged,5,HY,unhedged_delta,66.9446236374788,88.38788875472011,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,unhedged,6,HY,unhedged_delta,0.26008026860654354,88.38788875472011,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
+NA,unhedged,7,HY,unhedged_delta,115.62622967269272,88.38788875472011,new-name grid,0,0.0,all counterparties (no vega in cell),0,0.0
