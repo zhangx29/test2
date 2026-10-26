@@ -15,7 +15,7 @@ from . import riskclass
 from .counterparty import calibrate_counterparties
 from .engine import FACTOR_KEY, capital, gradient
 from .loader import UNIT_SCALE, rows
-from .marginal import MarginalEvaluator
+from .marginal import MarginalEvaluator, scaled
 from .policy import build_trade
 
 NEW_NAME = "__NEW__"  # suffixed per cell so cells never share a synthetic factor
@@ -28,7 +28,10 @@ def _ccs_trade(name, bucket, quality, profile, unit, params, group=""):
     return rows(recs, params)
 
 
-def ccs_representative_grid(book, params, policy_cfg, ev: MarginalEvaluator | None = None) -> pd.DataFrame:
+def ccs_representative_grid(book, params, policy_cfg, ev: MarginalEvaluator | None = None,
+                            ref_size: float | None = None) -> pd.DataFrame:
+    """New-name CCS RWs per policy x bucket x quality; ``ref_size`` (user units) adds ``ref_incremental_rw``, the
+    incremental RW per unit at that size."""
     cal = policy_cfg["calibration"]
     c = cal["ccs"]
     unit, scale = c["unit"], UNIT_SCALE[c["unit"]]
@@ -44,12 +47,14 @@ def ccs_representative_grid(book, params, policy_cfg, ev: MarginalEvaluator | No
     for pol, b, q, trade in cells:
         r_ = ev.evaluate(trade)
         inc, eul, alone = r_.incremental, r_.euler, r_.standalone
+        ref = {} if ref_size is None else dict(
+            ref_size=ref_size, ref_incremental_rw=ev.evaluate(scaled(trade, ref_size / ev.size)).incremental / ref_size * ev.size)
         out.append(dict(policy=pol, risk_class="CCS", measure="delta", bucket=b, quality=q,
                         risk_factor="profile:" + ",".join(f"{t}={w:g}" for t, w in c["tenor_profile"].items()),
                         unit=unit, reg_rw=params["CCS"]["rw"][q][b],
                         incremental_rw=inc, euler_rw=eul, standalone_rw=alone,
                         incremental_eff_rw=inc / scale, euler_eff_rw=eul / scale, standalone_eff_rw=alone / scale,
-                        basis=BASIS_REP))
+                        basis=BASIS_REP, **ref))
     return pd.DataFrame(out)
 
 

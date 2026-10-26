@@ -132,6 +132,15 @@ sacva_weights:
     sector_hedge: sector_hedge
     unhedged: unhedged_delta
   rw: incremental_rw            # CPTY_RW column used (incremental_rw | euler_rw | standalone_rw)
+  # Pricing methodology (override with `sacva weights --method`):
+  #   current    one RW per cell = cell-average `rw` per $1 (tenor columns / vegaCost)
+  #   size_term  Euler base plus a size term: per cell e (= `rw`, the $1 incremental or Euler RW), s (stand-alone)
+  #              and i_ref (incremental at ref_size) give K_eff = x_ref (s^2 - i_ref^2) / (2 (i_ref - e)); a trade
+  #              of size x is priced at RW(x) = (sqrt(K_eff^2 + 2 x K_eff e + x^2 s^2) - K_eff) / x (`sacva price`).
+  #              Adds eulerRw, standaloneRw, refRw, kEff, refSize and vegaEulerRw ... vegaRefSize; tenor columns and
+  #              vegaCost then carry refRw (= RW at ref_size).
+  method: current
+  ref_size: {ccs: 10000, vega: 10000}   # x_ref in user units: $/bp CR01 for CCS, $ per 1% for vega
   buckets: ["1a", "1b", "2", "3", "4", "5", "6", "7"]
   qualities: [IG, HY]
   tenors: [6m, 1y, 3y, 5y, 10y]

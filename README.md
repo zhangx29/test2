@@ -132,6 +132,40 @@ Every counterparty is priced under each hedge type, regardless of its assigned p
 `<out>_detail.csv` gives the policy, the source (counterparties / new-name grid / fallback), the number of
 counterparties and the gross sensitivity behind every value.
 
+### Methodology switch: `current` vs `size_term`
+
+`sacva_weights.method` in the policy config (or `sacva weights --method`) selects the pricing methodology:
+
+| method | file | trade of CR01 x |
+|---|---|---|
+| `current` (default) | as above: one RW per $1 per cell | capital = RW × x |
+| `size_term` | adds `eulerRw, standaloneRw, refRw, kEff, refSize` and `vegaEulerRw … vegaRefSize`; tenor columns and `vegaCost` carry `refRw` | capital = RW(x) × x |
+
+`size_term` is the Euler base plus a size term (memo section 4, `sacva/sizeterm.py`). Per cell, e (the `rw` column,
+by default the $1 incremental RW), s (stand-alone) and i_ref (incremental RW at `ref_size`, default $10k/bp and
+$10k per 1% vega) are gross-CR01-weighted over the counterparties (or taken from the new-name grid), and
+
+    K_eff = x_ref (s² − i_ref²) / (2 (i_ref − e))        RW(x) = (√(K_eff² + 2 x K_eff e + x² s²) − K_eff) / x
+
+RW(x) runs from e at small x through i_ref at x_ref to s for large x. A cell with no curvature (i_ref ≤ e) uses the
+class-level book K. `sacva price` applies either file to a trade:
+
+```bash
+sacva weights --book book.csv --out out/SACVAWeights.csv --method size_term
+sacva price --weights out/SACVAWeights.csv --hedge-type sector_hedge --bucket 2 --ig-hy IG --cr01 25000 --vega 5000
+sacva price --weights out/SACVAWeights.csv --cpty IPL --cr01 25000          # own line
+```
+
+`--floor f` floors RW(x) at f × stand-alone (off by default; memo 4.4). The output also shows x·s / K_eff: above
+5–10%, run a full pre-deal `sacva marginal` instead.
+
+## Memo figures on a real book
+
+`python examples/memo_figures.py --book <CVA_CALC_RF> --out out/memo` regenerates every book-dependent number of
+`docs/2026-10-20-sa-cva-rw-methodology.docx` (tables 3.4 and 4.2, the 3.7 exhibit, and the inline numbers in
+`memo_numbers.csv` keyed by section). The 3.7 PNG needs matplotlib. `grid_cells.csv` holds every cell to help choose
+the memo's example cells (`--table-cells`, `--curve-cells`, `--offset-cell`, `--cpty-cell`).
+
 ## Input format: generic (internal, used by tests)
 
 | column | values |

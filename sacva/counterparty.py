@@ -62,9 +62,12 @@ def counterparty_table(book: pd.DataFrame, policy_cfg: dict[str, Any]) -> pd.Dat
 
 def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict[str, Any],
                     ev: MarginalEvaluator | None = None, attrs: pd.DataFrame | None = None,
-                    risk_types: set[tuple[str, str]] | None = None) -> pd.DataFrame:
+                    risk_types: set[tuple[str, str]] | None = None,
+                    ref_sizes: dict[tuple[str, str], float] | None = None) -> pd.DataFrame:
     """RWs per counterparty x risk type, each counterparty under attrs['policy']; ``risk_types`` limits the
-    (risk_class, measure) cells priced (default: all)."""
+    (risk_class, measure) cells priced (default: all). ``ref_sizes`` {(risk_class, measure): user units} adds
+    ``ref_size`` and ``ref_incremental_rw``: the incremental RW of the same profile at that gross size (NaN for
+    risk types not listed)."""
     size = float(policy_cfg["calibration"].get("counterparty", {}).get("trade_size", 1.0))
     if size <= 0:
         raise ValueError("calibration.counterparty.trade_size must be positive")
@@ -74,6 +77,8 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
             "incremental_rw", "euler_rw", "standalone_rw", "incremental_rw_reverse",
             "incremental_eff_rw", "euler_eff_rw", "standalone_eff_rw", "incremental_eff_rw_reverse",
             "euler_alloc", "cva_euler"]
+    if ref_sizes is not None:
+        cols += ["ref_size", "ref_incremental_rw"]
     cva = book[(book["source"] == "CVA") & (book["counterparty"] != "")]
     if risk_types is not None:
         cva = cva[[k in risk_types for k in zip(cva["risk_class"], cva["measure"])]]
@@ -114,6 +119,11 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
         gross, scale = float(f0["gross"]), float(f0["scale"])
         size_n = size * scale                      # normalised gross size of the probe
         a = attrs.loc[f0["counterparty"]]
+        ref = {}
+        if ref_sizes is not None:
+            x = float(ref_sizes.get(key, np.nan))
+            ref = dict(ref_size=x, ref_incremental_rw=np.nan if np.isnan(x) else ev.evaluate_delta(
+                key, pos_u[iu], amt_u[iu] * x / size, pos_h[ih], amt_h[ih] * x / size)[0] / x)
         rows.append(dict(counterparty=f0["counterparty"], internal_entity=a["internal_entity"],
                          counterparty_id=a["counterparty_id"], policy=a["policy"], sector=a["sector"],
                          quality=a["quality"], risk_class=f0["risk_class"], measure=f0["measure"], unit=f0["unit"],
@@ -122,7 +132,7 @@ def counterparty_rw(book: pd.DataFrame, params: dict[str, Any], policy_cfg: dict
                          incremental_rw_reverse=inc_rev / size,
                          incremental_eff_rw=inc / size_n, euler_eff_rw=eul / size_n, standalone_eff_rw=alone / size_n,
                          incremental_eff_rw_reverse=inc_rev / size_n,
-                         euler_alloc=eul / size_n * gross, cva_euler=float(cva_e[iu].sum())))
+                         euler_alloc=eul / size_n * gross, cva_euler=float(cva_e[iu].sum()), **ref))
     return pd.DataFrame(rows, columns=cols)
 
 
